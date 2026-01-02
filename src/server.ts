@@ -15,9 +15,8 @@ import {
 
 // Retrieve the Perplexity API key from environment variables
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-// 魔改点：允许从环境变量读取 URL，默认指向你的 Zeabur
-const PERPLEXITY_API_URL =
-  process.env.PERPLEXITY_API_URL || "https://pplx2apiultra.zeabur.app/v1";
+// Retrieve the Perplexity API URL from environment variables
+const PERPLEXITY_API_URL = process.env.PERPLEXITY_API_URL;
 
 /**
  * Gets the proxy URL from environment variables.
@@ -130,6 +129,9 @@ export async function performChatCompletion(
 ): Promise<string> {
   if (!PERPLEXITY_API_KEY) {
     throw new Error("PERPLEXITY_API_KEY environment variable is required");
+  }
+  if (!PERPLEXITY_API_URL) {
+    throw new Error("PERPLEXITY_API_URL environment variable is required");
   }
 
   // Read timeout fresh each time to respect env var changes
