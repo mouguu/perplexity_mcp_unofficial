@@ -315,6 +315,10 @@ export function createPerplexityServer() {
             })
           )
           .describe("Array of conversation messages"),
+        model: z
+          .enum(["sonar", "sonar-pro", "sonar-reasoning"])
+          .optional()
+          .describe("Model to use (default: sonar for speed)"),
       },
       outputSchema: {
         response: z.string().describe("The chat completion response"),
@@ -324,12 +328,16 @@ export function createPerplexityServer() {
         openWorldHint: true,
       },
     },
-    async ({ messages }: { messages: Message[] }) => {
+    async ({ messages, model }: { messages: Message[], model?: string }) => {
       validateMessages(messages, "perplexity_ask");
-      // 强制使用 Gemini 3 Pro 联网版
+      
+      // Use provided model or default to 'sonar' (fastest)
+      // Previously hardcoded to "gemini-3-pro-search"
+      const targetModel = model || "sonar";
+
       const result = await performChatCompletion(
         messages,
-        "gemini-3-pro-search"
+        targetModel
       );
       return {
         content: [{ type: "text", text: result }],
