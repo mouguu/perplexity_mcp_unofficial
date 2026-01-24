@@ -43,7 +43,7 @@ export function getProxyUrl(): string | undefined {
  */
 export async function proxyAwareFetch(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> {
   const proxyUrl = getProxyUrl();
 
@@ -73,11 +73,11 @@ export async function proxyAwareFetch(
  */
 export function validateMessages(
   messages: unknown,
-  toolName: string
+  toolName: string,
 ): asserts messages is Message[] {
   if (!Array.isArray(messages)) {
     throw new Error(
-      `Invalid arguments for ${toolName}: 'messages' must be an array`
+      `Invalid arguments for ${toolName}: 'messages' must be an array`,
     );
   }
 
@@ -95,7 +95,7 @@ export function validateMessages(
       typeof msg.content !== "string"
     ) {
       throw new Error(
-        `Invalid message at index ${i}: 'content' must be a string`
+        `Invalid message at index ${i}: 'content' must be a string`,
       );
     }
   }
@@ -125,7 +125,7 @@ export function stripThinkingTokens(content: string): string {
 export async function performChatCompletion(
   messages: Message[],
   model: string = "sonar-pro",
-  stripThinking: boolean = false
+  stripThinking: boolean = false,
 ): Promise<string> {
   if (!PERPLEXITY_API_KEY) {
     throw new Error("PERPLEXITY_API_KEY environment variable is required");
@@ -137,7 +137,7 @@ export async function performChatCompletion(
   // Read timeout fresh each time to respect env var changes
   const TIMEOUT_MS = parseInt(
     process.env.PERPLEXITY_TIMEOUT_MS || "300000",
-    10
+    10,
   );
 
   // Construct the API endpoint URL and request body
@@ -167,7 +167,7 @@ export async function performChatCompletion(
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(
-        `Request timeout: Perplexity API did not respond within ${TIMEOUT_MS}ms. Consider increasing PERPLEXITY_TIMEOUT_MS.`
+        `Request timeout: Perplexity API did not respond within ${TIMEOUT_MS}ms. Consider increasing PERPLEXITY_TIMEOUT_MS.`,
       );
     }
     throw new Error(`Network error while calling Perplexity API: ${error}`);
@@ -182,7 +182,7 @@ export async function performChatCompletion(
       errorText = "Unable to parse error response";
     }
     throw new Error(
-      `Perplexity API error: ${response.status} ${response.statusText}\n${errorText}`
+      `Perplexity API error: ${response.status} ${response.statusText}\n${errorText}`,
     );
   }
 
@@ -193,14 +193,21 @@ export async function performChatCompletion(
   } catch (error) {
     if (error instanceof z.ZodError) {
       const issues = error.issues;
-      if (issues.some((i: z.ZodIssue) => i.path.includes('message') || i.path.includes('content'))) {
+      if (
+        issues.some(
+          (i: z.ZodIssue) =>
+            i.path.includes("message") || i.path.includes("content"),
+        )
+      ) {
         throw new Error("Invalid API response: missing message content");
       }
-      if (issues.some((i: z.ZodIssue) => i.path.includes('choices'))) {
+      if (issues.some((i: z.ZodIssue) => i.path.includes("choices"))) {
         throw new Error("Invalid API response: missing or empty choices array");
       }
     }
-    throw new Error(`Failed to parse JSON response from Perplexity API: ${String(error)}`);
+    throw new Error(
+      `Failed to parse JSON response from Perplexity API: ${String(error)}`,
+    );
   }
 
   const firstChoice = data.choices[0];
@@ -223,6 +230,15 @@ export async function performChatCompletion(
     data.citations.forEach((citation, index) => {
       messageContent += `[${index + 1}] ${citation}\n`;
     });
+  }
+
+  // Fix Markdown rendering error: remove extra spaces before URLs in links
+  // This prevents "Scheme contains illegal characters" error in some Markdown renderers
+  if (messageContent) {
+    messageContent = messageContent.replace(
+      /\]\(\s+(https?:\/\/|data:)/gi,
+      "]($1",
+    );
   }
 
   return messageContent;
@@ -270,13 +286,11 @@ export async function performSearch(
   query: string,
   maxResults: number = 10,
   maxTokensPerPage: number = 1024,
-  country?: string
+  country?: string,
 ): Promise<string> {
   // 偷梁换柱逻辑
-  const searchMessages: Message[] = [
-    { role: "user", content: query }
-  ];
-  
+  const searchMessages: Message[] = [{ role: "user", content: query }];
+
   // 强制调用 gemini-3-pro-search，因为它在多步搜索上表现极佳
   return await performChatCompletion(searchMessages, "gemini-3-pro-search");
 }
@@ -309,14 +323,19 @@ export function createPerplexityServer() {
               role: z
                 .string()
                 .describe(
-                  "Role of the message (e.g., system, user, assistant)"
+                  "Role of the message (e.g., system, user, assistant)",
                 ),
               content: z.string().describe("The content of the message"),
-            })
+            }),
           )
           .describe("Array of conversation messages"),
         model: z
-          .enum(["sonar", "gpt-5.2-search", "claude-4.5-sonnet-think-search", "gemini-3-pro-search"])
+          .enum([
+            "sonar",
+            "gpt-5.2-search",
+            "claude-4.5-sonnet-think-search",
+            "gemini-3-pro-search",
+          ])
           .optional()
           .describe("Model to use (default: sonar for speed)"),
       },
@@ -328,22 +347,19 @@ export function createPerplexityServer() {
         openWorldHint: true,
       },
     },
-    async ({ messages, model }: { messages: Message[], model?: string }) => {
+    async ({ messages, model }: { messages: Message[]; model?: string }) => {
       validateMessages(messages, "perplexity_ask");
-      
+
       // Use provided model or default to 'sonar' (fastest)
       // Previously hardcoded to "gemini-3-pro-search"
       const targetModel = model || "sonar";
 
-      const result = await performChatCompletion(
-        messages,
-        targetModel
-      );
+      const result = await performChatCompletion(messages, targetModel);
       return {
         content: [{ type: "text", text: result }],
         structuredContent: { response: result },
       };
-    }
+    },
   );
 
   // Register perplexity_research tool
@@ -362,17 +378,17 @@ export function createPerplexityServer() {
               role: z
                 .string()
                 .describe(
-                  "Role of the message (e.g., system, user, assistant)"
+                  "Role of the message (e.g., system, user, assistant)",
                 ),
               content: z.string().describe("The content of the message"),
-            })
+            }),
           )
           .describe("Array of conversation messages"),
         strip_thinking: z
           .boolean()
           .optional()
           .describe(
-            "If true, removes <think>...</think> tags and their content from the response to save context tokens. Default is false."
+            "If true, removes <think>...</think> tags and their content from the response to save context tokens. Default is false.",
           ),
       },
       outputSchema: {
@@ -383,7 +399,13 @@ export function createPerplexityServer() {
         openWorldHint: true,
       },
     },
-    async ({ messages, strip_thinking }: { messages: Message[], strip_thinking?: boolean }) => {
+    async ({
+      messages,
+      strip_thinking,
+    }: {
+      messages: Message[];
+      strip_thinking?: boolean;
+    }) => {
       validateMessages(messages, "perplexity_research");
       // 强制使用 GPT-5.2 联网版
       const result = await performChatCompletion(messages, "gpt-5.2-search");
@@ -391,7 +413,7 @@ export function createPerplexityServer() {
         content: [{ type: "text", text: result }],
         structuredContent: { response: result },
       };
-    }
+    },
   );
 
   // Register perplexity_reason tool
@@ -410,17 +432,17 @@ export function createPerplexityServer() {
               role: z
                 .string()
                 .describe(
-                  "Role of the message (e.g., system, user, assistant)"
+                  "Role of the message (e.g., system, user, assistant)",
                 ),
               content: z.string().describe("The content of the message"),
-            })
+            }),
           )
           .describe("Array of conversation messages"),
         strip_thinking: z
           .boolean()
           .optional()
           .describe(
-            "If true, removes <think>...</think> tags and their content from the response to save context tokens. Default is false."
+            "If true, removes <think>...</think> tags and their content from the response to save context tokens. Default is false.",
           ),
       },
       outputSchema: {
@@ -431,19 +453,25 @@ export function createPerplexityServer() {
         openWorldHint: true,
       },
     },
-    async ({ messages, strip_thinking }: { messages: Message[], strip_thinking?: boolean }) => {
+    async ({
+      messages,
+      strip_thinking,
+    }: {
+      messages: Message[];
+      strip_thinking?: boolean;
+    }) => {
       validateMessages(messages, "perplexity_reason");
       // 强制使用 Claude 4.5 Sonnet Thinking 联网版
       const result = await performChatCompletion(
         messages,
         "claude-4.5-sonnet-think-search",
-        !!strip_thinking
+        !!strip_thinking,
       );
       return {
         content: [{ type: "text", text: result }],
         structuredContent: { response: result },
       };
-    }
+    },
   );
 
   // Register perplexity_search tool
@@ -473,7 +501,7 @@ export function createPerplexityServer() {
           .string()
           .optional()
           .describe(
-            "ISO 3166-1 alpha-2 country code for regional results (e.g., 'US', 'GB')"
+            "ISO 3166-1 alpha-2 country code for regional results (e.g., 'US', 'GB')",
           ),
       },
       outputSchema: {
@@ -484,7 +512,17 @@ export function createPerplexityServer() {
         openWorldHint: true,
       },
     },
-    async ({ query, max_results, max_tokens_per_page, country }: { query: string, max_results?: number, max_tokens_per_page?: number, country?: string }) => {
+    async ({
+      query,
+      max_results,
+      max_tokens_per_page,
+      country,
+    }: {
+      query: string;
+      max_results?: number;
+      max_tokens_per_page?: number;
+      country?: string;
+    }) => {
       const maxResults = typeof max_results === "number" ? max_results : 10;
       const maxTokensPerPage =
         typeof max_tokens_per_page === "number" ? max_tokens_per_page : 1024;
@@ -494,13 +532,13 @@ export function createPerplexityServer() {
         query,
         maxResults,
         maxTokensPerPage,
-        countryCode
+        countryCode,
       );
       return {
         content: [{ type: "text", text: result }],
         structuredContent: { results: result },
       };
-    }
+    },
   );
 
   return server.server;
